@@ -1,0 +1,19 @@
+{
+    "appKeys": {},
+    "capabilities": [
+        ""
+    ],
+    "companyName": "ben.chapmankish@gmail.com",
+    "longName": "Styling Notes",
+    "projectType": "native",
+    "resources": {
+        "media": []
+    },
+    "sdkVersion": "3",
+    "shortName": "Styling Notes",
+    "uuid": "1b2db814-7ed3-49e6-ad16-8a50780629e0",
+    "versionLabel": "1.0",
+    "watchapp": {
+        "watchface": false
+    }
+}
