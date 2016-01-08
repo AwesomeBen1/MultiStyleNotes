@@ -1,5 +1,5 @@
 // Styling Notes
-// Made by Ben Chapman-Kish from 2016-01-03 to 2016-01-05
+// Made by Ben Chapman-Kish from 2016-01-03 to 2016-01-07
 // This watchapp is designed to contain notes that the user
 // can set in the configuration page on their phone
 
@@ -38,22 +38,17 @@ static PebbleFont pebble_fonts[] = {
  { .name = "Droid",  .variant = "28 Bold", .res = FONT_KEY_DROID_SERIF_28_BOLD }
 };
 
-static char *s_messages[] = {
-  "0123456789",
-  "abcdef ABCDEF",
-  "09:42"
-};
-
-
-
 typedef struct {
 	uint32_t id;
 	char *title;
+	GColor bgcolor;
 	uint32_t *pars;
 } Note;
 
 typedef struct {
 	uint8_t font;
+	GTextAlignment align;
+	GColor textcolor, bgcolor;
 	char *text;
 } Par;
 
@@ -61,19 +56,30 @@ static Par *pars;
 
 static Window *s_help_window;
 static TextLayer *s_help_title_layer, *s_help_layer;
-static TextLayer *s_paragraph_layers[2];
-static ScrollLayer *s_scroll_layer;
+//static ScrollLayer *s_scroll_layer;
 
 
 static Window *s_main_window, *s_font_window;
-static MenuLayer *s_menu_layer;
+//static MenuLayer *s_menu_layer;
 static TextLayer *s_text_layer, *s_font_name_layer, *s_font_variant_layer, *s_font_size_layer;
 
-/* Store the index of the currently selected font and text message. */
+
+static Window *s_list_window, *s_note_window;
+static MenuLayer *s_menu_layer;
+static ScrollLayer *s_scroll_layer;
+static TextLayer *s_par_temp_layer;
+static TextLayer **s_par_layers;
+static TextLayer **s_par_layers_temp = NULL;
+
+static Note my_note;
+static int num_pars;
+
+
+/*
 static int s_current_font;
 static int s_current_message;
 
-/* Text buffer for the size required to display font and message */
+
 static char s_size_text[256] = "size";
 
 static uint16_t get_num_rows(struct MenuLayer* menu_layer, uint16_t section_index, void *callback_context) {
@@ -278,56 +284,123 @@ static void font_window_unload(Window *window) {
   text_layer_destroy(s_text_layer);
   text_layer_destroy(s_font_name_layer);
   text_layer_destroy(s_font_variant_layer);
-}
+}*/
 
-static void init() {
-  s_main_window = window_create();
-  window_set_window_handlers(s_main_window, (WindowHandlers) {
-    .load = main_window_load,
-    .unload = main_window_unload
-  });
-
-  s_font_window = window_create();
-  window_set_window_handlers(s_font_window, (WindowHandlers) {
-    .load = font_window_load,
-    .unload = font_window_unload
-  });
-	
-	int num_pars = 2;
-	
+static void create_notes() {
+	num_pars = 5;
 	pars = malloc(sizeof(Par) * num_pars);
 	pars[0] = (Par) {
-		.font = 5,
+		.font = 3,
+		.align = GTextAlignmentCenter,
 		.text = "Welcome to my notes app!"
 	};
 	pars[1] = (Par) {
-		.font = 2,
-		.text = "It is very cool and useful.\nJust check it out!"
+		.align = GTextAlignmentLeft,
+		.textcolor = GColorBulgarianRose,
+		.text = "It is very useful.\nI hope it turns out well!"
+	};
+	pars[2] = (Par) {
+		.font = 15,
+		.bgcolor = GColorShockingPink,
+		.text = "This is paragraph 3"
+	};
+	pars[3] = (Par) {
+		.font = 1,
+		.text = "This is paragraph 4"
+	};
+	pars[4] = (Par) {
+		.align = GTextAlignmentRight,
+		.textcolor = GColorBlueMoon,
+		.bgcolor = GColorBrass,
+		.text = "This is paragraph 5"
 	};
 	
 	
-	Note my_note = {
-		.title = "This is my note"
-	};
+	my_note.title = "This is my note";
+	my_note.bgcolor = GColorInchworm;
 	my_note.pars = (uint32_t*)malloc(sizeof(uint32_t) * num_pars);
-	my_note.pars[0] = 0;
-	my_note.pars[1] = 1;
+	for (int i=0; i<num_pars; i++) {
+		my_note.pars[i] = i;
+	}
+}
+
+static void note_window_load(Window *window) {
+  Layer *window_layer = window_get_root_layer(window);
+
+  s_scroll_layer = scroll_layer_create(layer_get_frame(window_layer));
+  scroll_layer_set_click_config_onto_window(s_scroll_layer, window);
 	
+	window_set_background_color(window, COLOR_FALLBACK(my_note.bgcolor, GColorWhite));
+
+	int margin = 4;
+	int wrender = 144 - margin*2;
+	int vert_offset = 0;
+	int totsize = 0;
+	GSize temp_size;
 	Par this_par;
+	PebbleFont *this_font;
 	
 	for (int i=0; i<num_pars; i++) {
 		this_par = pars[my_note.pars[i]];
-		APP_LOG(APP_LOG_LEVEL_DEBUG, "%d %s", this_par.font, this_par.text);
-	}
-	free(my_note.pars);
-	free(pars);
+		this_font = &pebble_fonts[this_par.font];
+		
+		s_par_temp_layer = text_layer_create(GRect(margin, vert_offset, wrender, 168));
+		text_layer_set_text(s_par_temp_layer, this_par.text);
+		text_layer_set_text_color(s_par_temp_layer, COLOR_FALLBACK(this_par.textcolor, GColorBlack));
+		text_layer_set_background_color(s_par_temp_layer, COLOR_FALLBACK(this_par.bgcolor, GColorBlack));
+  	text_layer_set_font(s_par_temp_layer, fonts_get_system_font(this_font->res));
+		text_layer_set_text_alignment(s_par_temp_layer, this_par.align);
+		
+		temp_size = text_layer_get_content_size(s_par_temp_layer);
+		text_layer_set_size(s_par_temp_layer, GSize(wrender, temp_size.h + margin));
+		vert_offset += temp_size.h + margin;
+		totsize += sizeof(s_par_temp_layer);
+		
+		s_par_layers_temp = realloc(s_par_layers, totsize);
+		if (s_par_layers_temp != NULL) {
+			s_par_layers = s_par_layers_temp;
+		} else {
+			APP_LOG(APP_LOG_LEVEL_ERROR, "Error: Cannot reallocate memory to s_par_layers");
+		}
 
-  window_stack_push(s_main_window, true);
+		s_par_layers[i] = s_par_temp_layer;
+		scroll_layer_add_child(s_scroll_layer, text_layer_get_layer(s_par_layers[i]));
+	}
+
+	scroll_layer_set_content_size(s_scroll_layer, GSize(144, vert_offset + margin));
+  layer_add_child(window_layer, scroll_layer_get_layer(s_scroll_layer));
+}
+
+static void note_window_unload(Window *window) {
+	for (int i=0; i<num_pars; i++) {
+		text_layer_destroy(s_par_layers[i]);
+	}
+	free(s_par_layers);
+	free(my_note.pars);
+  scroll_layer_destroy(s_scroll_layer);
+}
+
+static void init() {
+	/*s_list_window = window_create();
+	window_set_window_handlers(s_list_window, (WindowHandlers) {
+    .load = list_window_load,
+    .unload = list_window_unload
+  });*/
+	
+	s_note_window = window_create();
+  window_set_window_handlers(s_note_window, (WindowHandlers) {
+    .load = note_window_load,
+    .unload = note_window_unload
+  });
+
+	create_notes();
+  window_stack_push(s_note_window, true);
 }
 
 static void deinit() {
-  window_destroy(s_font_window);
-  window_destroy(s_main_window);
+	free(pars);
+  //window_destroy(s_list_window);
+  window_destroy(s_note_window);
 }
 
 int main(void) {
